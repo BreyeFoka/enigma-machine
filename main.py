@@ -42,15 +42,17 @@ def create_gui():
 
     # Keyboard Handling
     def on_key_press(event):
-        """Handle physical keyboard key presses."""
+        """Handle keyboard key presses."""
         char = event.char.upper()
         if char in "ABCDEFGHIJKLMNOPQRSTUVWXYZ":
             input_text.set(input_text.get() + char)
             update_output()
-            return "break"  # Prevent default Entry behavior
+            return "break"  # Prevent default handling
 
-    # Ensure only a single binding for <KeyPress>
-    root.bind("<KeyPress>", on_key_press)
+    # Ensure `on_key_press` is bound only once
+    if not hasattr(root, "_key_press_bound"):
+        root.bind("<KeyPress>", on_key_press)
+        root._key_press_bound = True  # Track the binding to prevent duplicates
 
     # On-Screen Keyboard
     def on_screen_key_press(char):
@@ -58,7 +60,6 @@ def create_gui():
         input_text.set(input_text.get() + char)
         update_output()
 
-    # On-Screen Keyboard Layout
     keyboard_frame = tk.Frame(root)
     keyboard_frame.pack(side=tk.BOTTOM, pady=20)
 
