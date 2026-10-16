@@ -1,10 +1,15 @@
 import string
 
+ALPHABET = string.ascii_uppercase
+
+
 class Reflector:
     def __init__(self, wiring):
+        for i, letter in enumerate(ALPHABET):
+            partner = wiring[i]
+            if partner == letter or wiring[ALPHABET.index(partner)] != letter:
+                raise ValueError("Reflector wiring must pair every letter with a different one")
         self.wiring = wiring
-        self.alphabet = string.ascii_uppercase
 
     def reflect(self, char):
-        index = self.alphabet.index(char)
-        return self.wiring[index]
+        return self.wiring[ALPHABET.index(char)]

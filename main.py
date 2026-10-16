@@ -8,66 +8,11 @@ from PyQt5.QtWidgets import (
 from PyQt5.QtGui import QFont
 from PyQt5.QtCore import Qt
 
-# Set the QT_QPA_PLATFORM environment variable to xcb
-os.environ["QT_QPA_PLATFORM"] = "xcb"
+# Use Wayland only when the session is Wayland; forcing it breaks X11, macOS and Windows.
+if os.environ.get("WAYLAND_DISPLAY"):
+    os.environ.setdefault("QT_QPA_PLATFORM", "wayland")
 
-# Import the logic classes
-class Rotor:
-    def __init__(self, wiring, notch):
-        self.alphabet = string.ascii_uppercase
-        self.wiring = wiring
-        self.notch = notch
-        self.position = 0
-
-    def forward(self, char):
-        index = (self.alphabet.index(char) + self.position) % 26
-        return self.wiring[index]
-
-    def backward(self, char):
-        index = (self.wiring.index(char) - self.position) % 26
-        return self.alphabet[index]
-
-    def rotate(self):
-        self.position = (self.position + 1) % 26
-
-
-class Plugboard:
-    def __init__(self, settings):
-        self.mapping = {char: char for char in string.ascii_uppercase}
-        for pair in settings:
-            a, b = pair
-            self.mapping[a], self.mapping[b] = b, a
-
-    def substitute(self, char):
-        return self.mapping[char]
-
-
-class Reflector:
-    def __init__(self, wiring):
-        self.wiring = wiring
-        self.alphabet = string.ascii_uppercase
-
-    def reflect(self, char):
-        index = self.alphabet.index(char)
-        return self.wiring[index]
-
-
-class EnigmaMachine:
-    def __init__(self, rotors, reflector, plugboard_settings):
-        self.rotors = [Rotor(wiring, notch) for wiring, notch in rotors]
-        self.reflector = Reflector(reflector)
-        self.plugboard = Plugboard(plugboard_settings)
-
-    def encode(self, char):
-        char = self.plugboard.substitute(char)
-        for rotor in self.rotors:
-            char = rotor.forward(char)
-        char = self.reflector.reflect(char)
-        for rotor in reversed(self.rotors):
-            char = rotor.backward(char)
-        char = self.plugboard.substitute(char)
-        self.rotors[0].rotate()
-        return char
+from enigma import REFLECTORS, ROTORS, EnigmaMachine
 
 
 # UI Class
@@ -76,12 +21,8 @@ class EnigmaUI(QWidget):
         super().__init__()
 
         # Initialize Enigma machine
-        rotor_configs = [
-            ("EKMFLGDQVZNTOWYHXUSPAIBRCJ", "Q"),  # Rotor I
-            ("AJDKSIRUXBLHWTMCQGZNPYFVOE", "E"),  # Rotor II
-            ("BDFHJLCPRTXVZNYEIWGAKMUSQO", "V"),  # Rotor III
-        ]
-        reflector_config = "YRUHQSLDPXNGOKMIEBFZCWVJAT"
+        rotor_configs = [ROTORS["I"], ROTORS["II"], ROTORS["III"]]
+        reflector_config = REFLECTORS["B"]
         plugboard_settings = [("A", "B"), ("C", "D")]
         self.enigma = EnigmaMachine(rotor_configs, reflector_config, plugboard_settings)
 
@@ -114,7 +55,7 @@ class EnigmaUI(QWidget):
 
             rotor_selector = QComboBox(self)
             rotor_selector.addItems([chr(x) for x in range(65, 91)])  # A-Z
-            rotor_selector.currentIndexChanged.connect(self.update_rotor_position)
+            rotor_selector.currentIndexChanged.connect(self.update_output)
 
             self.rotor_positions.append(rotor_selector)
             rotor_layout.addWidget(rotor_label)
@@ -151,10 +92,9 @@ class EnigmaUI(QWidget):
         self.setLayout(main_layout)
 
     def update_output(self):
-        """Encrypt the input text and update the output display."""
-        word = self.input_field.text().upper()
-        ciphered = ''.join(self.enigma.encode(char) for char in word if char.isalpha())
-        self.display_label.setText(ciphered)
+        """Encrypt the whole input from the chosen start positions and show it."""
+        self.update_rotor_position()
+        self.display_label.setText(self.enigma.encode_text(self.input_field.text()))
 
     def on_key_press(self, letter):
         """Handle on-screen keyboard key press."""
@@ -162,9 +102,10 @@ class EnigmaUI(QWidget):
         self.input_field.setText(current_text + letter)
 
     def update_rotor_position(self):
-        """Update rotor positions based on user selection."""
-        for i, rotor in enumerate(self.rotor_positions):
-            self.enigma.rotors[i].position = rotor.currentIndex()
+        """Reset the rotors to the start positions chosen in the selectors."""
+        if not hasattr(self, "rotor_positions"):
+            return
+        self.enigma.set_positions("".join(chr(65 + box.currentIndex()) for box in self.rotor_positions))
 
 
 # Run the application
